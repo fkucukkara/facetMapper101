@@ -16,6 +16,9 @@ This project showcases:
 
 - ✅ **Basic Faceting**: Creating DTOs by excluding unwanted properties
 - ✅ **Custom Mapping**: Implementing custom transformation logic
+- ✅ **Single Item Mapping**: Converting individual objects with `ToFacet<T, TTarget>()`
+- ✅ **In-Memory Collection Processing**: Transforming lists using compiled projections
+- ✅ **Entity Framework Integration**: Database queries with direct projection support
 - ✅ **Compile-time Generation**: Zero runtime overhead with source generation
 - ✅ **Strong Typing**: Full IntelliSense support for generated code
 
@@ -26,7 +29,8 @@ FacetMapperPlayground/
 ├── Employee.cs              # Domain model (source)
 ├── Facets.cs               # Facet definitions and configurations
 ├── EmployeeMapConfig.cs    # Custom mapping configuration
-├── Program.cs              # Main program demonstrating usage
+├── EmployeeDBContext.cs    # Entity Framework DbContext
+├── Program.cs              # Main program demonstrating usage scenarios
 └── FacetMapperPlayground.csproj  # Project file with Facet packages
 ```
 
@@ -41,6 +45,7 @@ FacetMapperPlayground/
 <PackageReference Include="Facet" Version="2.0.1" />
 <PackageReference Include="Facet.Extensions" Version="2.0.1" />
 <PackageReference Include="Facet.Mapping" Version="2.0.1" />
+<PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.8" />
 ```
 
 ## 🏃‍♂️ Running the Project
@@ -109,8 +114,24 @@ public class EmployeeMapConfig : IFacetMapConfiguration<Employee, EmployeeDTO>
 - Prefixes the employee name with the current year
 - Demonstrates how to modify property values during mapping
 
-### 4. Usage (`Program.cs`)
+### 4. Entity Framework Integration (`EmployeeDBContext.cs`)
 
+```csharp
+public class EmployeeDBContext : DbContext
+{
+    public EmployeeDBContext(DbContextOptions<EmployeeDBContext> options) : base(options)
+    {            
+    }
+
+    public DbSet<Employee> Employees { get; set; }
+}
+```
+
+### 5. Usage Scenarios (`Program.cs`)
+
+The project demonstrates three main usage patterns:
+
+#### 🔸 Single Item Mapping
 ```csharp
 var employee = new Employee
 {
@@ -124,6 +145,37 @@ var employee = new Employee
 var employeeDTO = employee.ToFacet<Employee, EmployeeDTO>();
 ```
 
+#### 🔸 In-Memory Collection Processing
+```csharp
+var employees = Enumerable.Range(1, 5).Select(i => new Employee
+{
+    Id = i,
+    Name = $"Employee {i}",
+    Age = 25 + i * 2,
+    BirthDate = DateTime.Now.AddYears(-(25 + i * 2)),
+    Address = $"{100 + i * 50} Street {i}, City {i}"
+});
+
+var employeeList = employees.Select(EmployeeDTO.Projection.Compile()).ToList();
+```
+
+#### 🔸 Entity Framework Database Queries
+```csharp
+var options = new DbContextOptionsBuilder<EmployeeDBContext>()
+           .UseInMemoryDatabase("EmployeeDb")
+           .Options;
+
+using var context = new EmployeeDBContext(options);
+context.Employees.AddRange(
+    new Employee { Id = 1, Name = "Alice Johnson", Age = 28, BirthDate = new DateTime(1995, 3, 12), Address = "456 Oak Ave, Springfield" },
+    new Employee { Id = 2, Name = "Bob Smith", Age = 35, BirthDate = new DateTime(1988, 8, 23), Address = "789 Pine St, Riverside" },
+    new Employee { Id = 3, Name = "Carol Davis", Age = 42, BirthDate = new DateTime(1981, 11, 7), Address = "321 Elm Dr, Lakeside" }
+);
+context.SaveChanges();
+
+var employeeListFromDB = context.Employees.Select(EmployeeDTO.Projection).ToList();
+```
+
 ## 🎓 What You'll Learn
 
 By exploring this project, you'll understand:
@@ -131,8 +183,11 @@ By exploring this project, you'll understand:
 1. **How to define Facets** using the `[Facet]` attribute
 2. **Property exclusion** to create focused projections
 3. **Custom mapping configurations** for complex transformations
-4. **Compile-time code generation** benefits
-5. **Extension methods** for easy mapping (`ToFacet<T, TTarget>()`)
+4. **Single item transformation** using `ToFacet<T, TTarget>()` extension method
+5. **In-memory collection processing** with compiled projections
+6. **Entity Framework integration** for efficient database queries
+7. **Compile-time code generation** benefits
+8. **Performance optimization** through different projection methods
 
 ## 🔍 Generated Code
 
@@ -152,6 +207,10 @@ public partial class EmployeeDTO
         // Custom mapping applied here
         EmployeeMapConfig.Map(source, this);
     }
+    
+    // Static projection for Entity Framework queries
+    public static readonly Expression<Func<Employee, EmployeeDTO>> Projection = 
+        source => new EmployeeDTO { /* generated projection logic */ };
 }
 ```
 
@@ -162,6 +221,16 @@ public partial class EmployeeDTO
 - **🔒 Type Safety**: Full compile-time checking and IntelliSense support
 - **🔄 DRY Principle**: No duplicate property definitions between models and DTOs
 - **⚡ Easy Mapping**: Simple extension methods for object transformation
+- **🗃️ EF Core Integration**: Direct projection support for efficient database queries
+- **📊 Flexible Usage**: Works with single items, collections, and database queries
+
+## 🔧 Usage Patterns
+
+| Scenario | Method | Use Case |
+|----------|--------|----------|
+| Single Item | `item.ToFacet<Source, Target>()` | Converting individual objects |
+| In-Memory List | `list.Select(TargetDTO.Projection.Compile())` | Processing collections in memory |
+| Database Query | `dbSet.Select(TargetDTO.Projection)` | Efficient database projections |
 
 ## 📖 Further Reading
 
